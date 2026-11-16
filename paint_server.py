@@ -1,21 +1,27 @@
-"""p-AI-nt MCP stdio server and read-only local live viewer."""
+"""One local p-AI-nt studio with Streamable HTTP MCP and a read-only viewer."""
 from __future__ import annotations
 
-import json
 import os
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP, Image
 from pydantic import BaseModel, Field
+from starlette.responses import FileResponse, JSONResponse, Response
+from mcp.server.transport_security import TransportSecuritySettings
 from paint_engine import Studio
 
+PORT = int(os.environ.get("PAINT_PORT", "8765"))
 studio = Studio()
-mcp = FastMCP("p-AI-nt", instructions="Paint directly with p-AI-nt tools. "
+mcp = FastMCP("p-AI-nt", host="127.0.0.1", port=PORT,
+    stateless_http=True, json_response=True,
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[f"127.0.0.1:{PORT}", f"localhost:{PORT}"],
+        allowed_origins=[f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"],
+    ),
+    instructions="Paint directly with p-AI-nt tools. "
     "Canvas coordinates are pixels from the top-left. Create transparent named layers, "
     "paint shapes or strokes, then look to inspect the result. No Python scripts needed.")
 ROOT = Path(__file__).resolve().parent
@@ -91,44 +97,30 @@ def save(name: str = "Painting") -> dict:
     return studio.save(OUTPUT, name)
 
 
-class Viewer(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
+# Both the viewer and MCP share this single Studio instance.
+# Only MCP exposes drawing operations. Browser routes are read-only.
+HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
 
-    def do_GET(self):
-        path = urlsplit(self.path).path
-        if path == "/":
-            body, mime = (ROOT / "viewer.html").read_bytes(), "text/html; charset=utf-8"
-        elif path == "/state":
-            body, mime = json.dumps(studio.scene()).encode(), "application/json"
-        elif path == "/canvas.png":
-            body, mime = studio.png(), "image/png"
-        else:
-            self.send_error(404)
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.end_headers()
-        self.wfile.write(body)
+
+@mcp.custom_route("/", methods=["GET"])
+async def viewer(request):
+    return FileResponse(ROOT / "viewer.html", media_type="text/html", headers=HEADERS)
+
+
+@mcp.custom_route("/state", methods=["GET"])
+async def viewer_state(request):
+    return JSONResponse(studio.scene(), headers=HEADERS)
+
+
+@mcp.custom_route("/canvas.png", methods=["GET"])
+async def viewer_canvas(request):
+    return Response(studio.png(), media_type="image/png", headers=HEADERS)
 
 
 def main():
-    port = int(os.environ.get("PAINT_PORT", "8765"))
-    try:
-        viewer = ThreadingHTTPServer(("127.0.0.1", port), Viewer)
-    except OSError as exc:
-        raise SystemExit(f"Cannot start p-AI-nt viewer on port {port}. Stop the other instance or choose PAINT_PORT: {exc}")
-    thread = threading.Thread(target=viewer.serve_forever, daemon=True)
-    thread.start()
-    print(f"p-AI-nt viewer: http://127.0.0.1:{port}", file=sys.stderr)
-    try:
-        mcp.run(transport="stdio")
-    finally:
-        viewer.shutdown()
-        viewer.server_close()
+    print(f"p-AI-nt viewer: http://127.0.0.1:{PORT}", file=sys.stderr)
+    print(f"p-AI-nt MCP: http://127.0.0.1:{PORT}/mcp", file=sys.stderr)
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
