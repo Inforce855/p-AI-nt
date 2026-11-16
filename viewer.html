@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en-GB">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>p-AI-nt | Live studio</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#14171b;color:#e7e9ee;font:15px system-ui,sans-serif}header{display:flex;align-items:center;gap:20px;padding:18px 24px;border-bottom:1px solid #333940}h1{margin:0;font-size:25px;letter-spacing:-1px}h1 span{color:#f5ad66}#status{margin-left:auto;color:#a3cba7}main{display:grid;grid-template-columns:minmax(0,1fr) 270px;min-height:calc(100vh - 72px)}section{padding:24px;min-width:0}aside{border-left:1px solid #333940;padding:24px 18px}h2{font-size:16px;margin:0 0 14px}#stage{display:flex;justify-content:center;align-items:center;min-height:300px;height:calc(100vh - 170px);overflow:auto;background:#20242b;border:1px solid #363c44;border-radius:10px;padding:20px}#canvas{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 8px 35px #0008;background:repeating-conic-gradient(#bbb 0% 25%,#ddd 0% 50%) 0 0/20px 20px}#layers{list-style:none;padding:0;margin:0}li{padding:12px 8px;border-bottom:1px solid #30353c;overflow-wrap:anywhere}small,.muted{color:#a1aab5}a{color:#f5ad66}footer{padding-top:14px;display:flex;gap:20px;flex-wrap:wrap}button{background:#303741;color:inherit;border:1px solid #515a67;border-radius:6px;padding:7px 12px;cursor:pointer}@media(max-width:700px){main{grid-template-columns:1fr}aside{border-left:0;border-top:1px solid #333940}#stage{height:55vh}}
+</style></head><body>
+<header><h1>p-<span>AI</span>-nt</h1><span class="muted">Live artist studio</span><span id="status">Connecting…</span></header>
+<main><section><h2 id="title">Waiting for canvas</h2><div id="stage"><img id="canvas" alt="Current AI painting"></div>
+<footer><span id="dimensions" class="muted"></span><a href="/canvas.png" download="painting.png">Download PNG</a><button id="zoom">Actual size</button></footer></section>
+<aside><h2>Layers</h2><ul id="layers"></ul><h2 style="margin-top:28px">Artist activity</h2><p id="activity" class="muted">Waiting for MCP</p><p class="muted">Read-only viewer · drawing is performed through MCP.</p></aside></main>
+<script>
+const $=id=>document.getElementById(id);
+let revision=-1, busy=false, actual=false;
+async function update(){
+ if(busy)return;busy=true;
+ try{
+ const response=await fetch('/state',{cache:'no-store'});if(!response.ok)throw Error();
+ const s=await response.json();
+ if(s.revision!==revision){
+ revision=s.revision;$('canvas').src='/canvas.png?r='+revision;
+ $('title').textContent=s.title;$('dimensions').textContent=s.width+' × '+s.height+' px · revision '+revision;
+ $('activity').textContent=s.last_action;
+ $('layers').replaceChildren(...s.layers.slice().reverse().map(l=>{const li=document.createElement('li');li.textContent=(l.visible?'◉ ':'○ ')+l.name+' · '+Math.round(l.opacity*100)+'%';return li;}));
+ }
+ $('status').textContent='● Live';
+ }catch(e){$('status').textContent='Disconnected';revision=-1;}
+ finally{busy=false;}
+}
+$('zoom').onclick=()=>{actual=!actual;$('canvas').style.maxWidth=actual?'none':'100%';$('canvas').style.maxHeight=actual?'none':'100%';$('zoom').textContent=actual?'Fit canvas':'Actual size';};
+update();setInterval(update,350);
+</script></body></html>
