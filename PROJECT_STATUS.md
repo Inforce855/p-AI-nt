@@ -9,11 +9,10 @@
 - Design: AI chooses geometry, colour and technique; engine performs operations. No raw Python escape hatch.
 
 - Second E4B export confirms explicit Code Mode call tools.paint.get_scene({}) returned Unknown tool in 9 ms. Model correctly reported unavailable; no painting attempted.
-- Connection lifecycle fix implemented: one loopback Streamable HTTP MCP studio with read-only viewer routes on the same port. Existing painting engine and viewer HTML unchanged. SDK integration test added; runtime verification pending.
+- Connection lifecycle fix implemented: one loopback Streamable HTTP MCP studio with read-only viewer routes on the same port. Existing painting engine and viewer HTML unchanged. SDK integration test added.
+- User confirmed all migration and verification steps passed on Nobara on 16 November 2026: HTTP studio running, OpenChamber paint Link connected, and integration smoke test passed (nine tools, two clients sharing one canvas, PNG feedback, viewer and undo).
 
 ## REMAINING
-- Migrate existing paint MCP entry from Command (stdio) to Link (HTTP), stop the confirmed old process if still present, and start the studio once. Verify two clients share the canvas and the OpenChamber tool catalogue exposes paint.
-- Run MCP integration smoke test on Nobara.
 - Verify the actual OpenChamber image feedback path with Gemma E4B.
 - Test independent cat painting, then compare Gemma 26B and 31B.
 - Improve rendering quality and brush textures after the basic benchmark.
@@ -21,7 +20,7 @@
 - Desktop packaging deferred.
 
 ## NEXT ACTION
-Disable old Command MCP, check port ownership, pull the fix, start studio once, configure paint Link to http://127.0.0.1:8765/mcp, and run the integration smoke test. Then E4B cat benchmark.
+Run the independent Gemma E4B cat benchmark using the paint MCP tools, with no supplied geometry or technical assistance. Record time to first mark, elapsed time, tool errors, layers, visual inspection/corrections and final artwork.
 
 ## Verification
-Initial source committed and engine tests passed on Nobara. OpenChamber startup currently fails with Errno 98 (address already in use) on port 8765; viewer confirmed working in an existing Python process (PID 723980). ps confirms PID 723980 is the p-AI-nt virtual-environment Python process, parent PID 289020 is OpenChamber's bundled OpenCode server. A further launch failed to bind the same port; whether it was a connection test or another launch is not established. No successful MCP integration or model run claimed. Viewer updates after each committed operation/batch (not individual strokes within a batch). Single persistent studio process and canvas; reconnecting clients should preserve state, stopping the studio loses unsaved state. HTTP migration not yet tested on Nobara. Layered archives retain pixels and layer metadata but reopening is not implemented yet.
+Nobara engine tests: 6/6 passed in 0.009 seconds. The original stdio port conflict (Errno 98) occurred when a second process attempted to bind the existing OpenCode-launched viewer's port. The HTTP migration and integration test have now passed according to the user's confirmation; the original conflict is no longer blocking testing. Gemma E4B's ability to paint and receive visual feedback in OpenChamber remains untested. Viewer updates after each committed operation/batch (not individual strokes within a batch). One persistent studio process holds the shared canvas; reconnecting clients preserves state, stopping the studio loses unsaved state. Layered archives retain pixels and layer metadata but reopening is not implemented yet.
